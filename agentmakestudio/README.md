@@ -12,6 +12,18 @@ To support Vertex AI:
 
 > pip install --upgrade "agentmakestudio[genai]"
 
+# Export Path
+
+To export Path for running AgentMake and AgentMake Studio, assuming you install `agentmakestudio` in a virtual environment `ai`, e.g.:
+
+```
+cd
+python3 -m venv ai
+source ai/bin/activate
+pip install --upgrade "agentmake[studio,genai]"
+echo export "PATH=$PATH:$(pwd)/ai/bin" >> ~/.bashrc
+```
+
 # Configurations
 
 To configure AgentMake AI backends, like API keys, run:
@@ -22,7 +34,23 @@ To configure AgentMake AI backends, like API keys, run:
 
 > agentmakestudio
 
-Open `http://localhost:32123`
+Open `http://localhost:32123` in a web browser.
+
+# Run with Custom Port
+
+For example, use port 33333
+
+> agentmakestudio --port 33333
+
+Open `http://localhost:33333` in a web browser.
+
+# Auto Run
+
+Below is an example bash script that runs `agentmakestudio` automatically:
+
+https://github.com/eliranwong/agentmakestudio/blob/main/README.md
+
+You may place the content script in, e.g. `~/.bashrc`
 
 # Read more
 

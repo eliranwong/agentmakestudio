@@ -1,6 +1,7 @@
-from agentmake import agentmake, listResources, DEVELOPER_MODE, DEFAULT_AI_BACKEND, SUPPORTED_AI_BACKENDS, AnthropicAI, AzureAI, AzureAnyAI, CohereAI, OpenaiCompatibleAI, DeepseekAI, GenaiAI, GithubAI, GithubAnyAI, GoogleaiAI, GroqAI, LlamacppAI, MistralAI, OllamaAI, OpenaiAI, XaiAI
+from agentmake import agentmake, listResources, listFabricSystems, writeTextFile, DEVELOPER_MODE, AGENTMAKE_USER_DIR, DEFAULT_AI_BACKEND, SUPPORTED_AI_BACKENDS, AnthropicAI, AzureAI, AzureAnyAI, CohereAI, OpenaiCompatibleAI, DeepseekAI, GenaiAI, GithubAI, GithubAnyAI, GoogleaiAI, GroqAI, LlamacppAI, MistralAI, OllamaAI, OpenaiAI, XaiAI
+from pprint import pformat
 from pydoc import pipepager
-import pyperclip, shutil, markdown, os
+import argparse, pyperclip, psutil, shutil, markdown, os, re
 messages = []
 backends = {
     "anthropic": AnthropicAI,
@@ -69,9 +70,14 @@ class State:
   batch_size: Optional[int] = OllamaAI.DEFAULT_BATCH_SIZE
 
   agent: Optional[str] = None
-  system: Optional[str] = None
   tool: Optional[str] = None
+  system: Optional[str] = None
+  custom_system: Optional[str] = None
+  fabric_system: str = "ai"
   instruction: Optional[str] = None
+  custom_instruction: Optional[str] = None
+  follow_up_prompt: Optional[str] = None
+  custom_follow_up_prompt: Optional[str] = None
   input_content_plugin: Optional[str] = None
   output_content_plugin: Optional[str] = None
 
@@ -84,7 +90,8 @@ class State:
   history: list[list[dict]]
 
   # snackbar
-  snackbar_content: str = ""
+  snackbar_label: str = ""
+  snackbar_action_label: str = ""
   snackbar_is_visible: bool = False
   snackbar_duration: int = 1
   snackbar_horizontal_position: str = "center"
@@ -93,8 +100,22 @@ class State:
 def respond_to_chat(input: str, history: list[ChatMessage]):
   global messages
   state = me.state(State)
+  # follow_up_prompt
+  follow_up_prompt_content = state.follow_up_prompt if not state.follow_up_prompt == "[custom]" else state.custom_follow_up_prompt or None
+  if messages:
+    follow_up_prompt = [input, follow_up_prompt_content] if follow_up_prompt_content else input
+  else:
+    follow_up_prompt = follow_up_prompt_content
+  # system
+  if state.system == "[custom]" and state.custom_system:
+    system = state.custom_system
+  elif state.system == "[fabric]":
+    system = "fabric." + state.fabric_system
+  else:
+    system = state.system
   messages = agentmake(
     messages if messages else input,
+    follow_up_prompt=follow_up_prompt,
     backend=state.backend,
     model=state.model,
     temperature=state.temperature,
@@ -103,13 +124,15 @@ def respond_to_chat(input: str, history: list[ChatMessage]):
     batch_size=state.batch_size,
     agent=state.agent,
     tool=state.tool,
-    system=state.system,
-    instruction=state.instruction,
+    system=system,
+    instruction=state.instruction if not state.instruction == "[custom]" else state.custom_instruction or None,
     input_content_plugin=state.input_content_plugin,
     output_content_plugin=state.output_content_plugin,
-    follow_up_prompt=input if messages else None,
     print_on_terminal=DEVELOPER_MODE,
   )
+  state.output = [
+    ChatMessage(role="bot" if chat.get("role") == "assistant" else "user", content=chat.get("content")) for chat in messages[1:]
+  ]
   yield markdown.markdown(messages[-1].get("content", ""))
 
 def on_load(e: me.LoadEvent):
@@ -127,8 +150,8 @@ def page():
   state = me.state(State)
 
   snackbar(
-    label=state.snackbar_content,
-    action_label="Copied!",
+    label=state.snackbar_label,
+    action_label=state.snackbar_action_label,
     on_click_action=on_click_snackbar_close,
     is_visible=state.snackbar_is_visible,
     horizontal_position=state.snackbar_horizontal_position,
@@ -191,6 +214,7 @@ def sidebar():
       display="flex",
       flex_direction="column",
       flex_grow=1,
+      overflow_y="scroll",
     )
   ):
     with me.box(style=me.Style(display="flex", gap=20)):
@@ -203,7 +227,42 @@ def sidebar():
         )
 
     if state.sidebar_expanded:
-      menu_item(icon="add", label="New chat", on_click=on_click_new_chat)
+      # New Chat
+      #menu_item(icon="add", label="New Chat", on_click=on_click_new_chat)
+      # Open Chat
+      with me.box(
+        style=me.Style(
+          display="flex",
+          flex_direction="row",
+          gap=10,
+          margin=me.Margin(bottom=10, top=0)
+        ),
+      ):
+        # new chat
+        with me.tooltip(message="New Chat"):
+          with me.content_button(
+            on_click=on_click_new_chat,
+            style=me.Style(top=0, left=10, right=10, bottom=10),
+            type="icon",
+          ):
+            me.icon("add")
+        # open chat
+        with me.tooltip(message="Open Chat"):
+          with me.content_uploader(
+            accepted_file_types=["application/x-python"],
+            on_upload=on_click_open_chat,
+            type="icon",
+            style=me.Style(top=0, left=10, right=10, bottom=10),
+          ):
+            me.icon("file_open")
+        # save chat
+        with me.tooltip(message="Save Chat"):
+          with me.content_button(
+            on_click=on_click_save_chat,
+            style=me.Style(top=0, left=10, right=10, bottom=10),
+            type="icon",
+          ):
+            me.icon("save")
 
       me.select(
         options=[me.SelectOption(label=i, value=i) for i in SUPPORTED_AI_BACKENDS],
@@ -212,7 +271,6 @@ def sidebar():
         on_selection_change=on_backend_select,
         value=state.backend,
       )
-
       if not state.backend == "llamacpp":
         me.input(
           label="Model",
@@ -220,7 +278,6 @@ def sidebar():
           value=state.model if state.model else "",
           on_input=on_input_model,
         )
-
       me.input(
         label="Temperature",
         style=_STYLE_INPUT_WIDTH,
@@ -249,11 +306,11 @@ def sidebar():
         )
 
       me.select(
-        options=[me.SelectOption(label="[default]", value="[default]"),me.SelectOption(label="auto", value="auto")]+[me.SelectOption(label=i, value=i) for i in listResources("systems")],
-        label="System",
+        options=[me.SelectOption(label="[none]", value="[none]")]+[me.SelectOption(label=i, value=i) for i in listResources("agents", ext="py")],
+        label="Agent",
         style=_STYLE_INPUT_WIDTH,
-        on_selection_change=on_system_select,
-        value="[default]" if not state.system else state.system,
+        on_selection_change=on_agent_select,
+        value="[none]" if not state.agent else state.agent,
       )
       me.select(
         options=[me.SelectOption(label="[none]", value="[none]")]+[me.SelectOption(label=i, value=i) for i in listResources("tools", ext="py")],
@@ -262,13 +319,61 @@ def sidebar():
         on_selection_change=on_tool_select,
         value="[none]" if not state.tool else state.tool,
       )
+      #listFabricSystems
+      extraSystems = [me.SelectOption(label="[default]", value="[default]"),me.SelectOption(label="[custom]", value="[custom]"),me.SelectOption(label="auto", value="auto"),me.SelectOption(label="reasoning", value="reasoning")]
+      fabricSystems = listFabricSystems()
+      if fabricSystems:
+        extraSystems.insert(2, me.SelectOption(label="[fabric]", value="[fabric]"))
       me.select(
-        options=[me.SelectOption(label="[none]", value="[none]")]+[me.SelectOption(label=i, value=i) for i in listResources("instructions")],
-        label="Predefined Instruction",
+        options=extraSystems+[me.SelectOption(label=i, value=i) for i in listResources("systems")],
+        label="System",
+        style=_STYLE_INPUT_WIDTH,
+        on_selection_change=on_system_select,
+        value="[default]" if not state.system else state.system,
+      )
+      if state.system == "[custom]":
+        me.input(
+          label="Custom System",
+          style=_STYLE_INPUT_WIDTH,
+          value=state.custom_system if state.custom_system else "",
+          on_input=on_input_custom_system,
+        )
+      if state.system == "[fabric]":
+        me.select(
+          options=[me.SelectOption(label=i, value=i) for i in fabricSystems],
+          label="Fabric System",
+          style=_STYLE_INPUT_WIDTH,
+          on_selection_change=on_fabric_system_select,
+          value="ai" if "ai" in fabricSystems else "",
+        )
+      me.select(
+        options=[me.SelectOption(label="[none]", value="[none]"),me.SelectOption(label="[custom]", value="[custom]")]+[me.SelectOption(label=i, value=i) for i in listResources("instructions")],
+        label="Instruction",
         style=_STYLE_INPUT_WIDTH,
         on_selection_change=on_instruction_select,
         value="[none]" if not state.instruction else state.instruction,
       )
+      if state.instruction == "[custom]":
+        me.input(
+          label="Custom Instruction",
+          style=_STYLE_INPUT_WIDTH,
+          value=state.custom_instruction if state.custom_instruction else "",
+          on_input=on_input_custom_instruction,
+        )
+      me.select(
+        options=[me.SelectOption(label="[none]", value="[none]"),me.SelectOption(label="[custom]", value="[custom]")]+[me.SelectOption(label=i, value=i) for i in listResources("prompts")],
+        label="Follow-up Prompt",
+        style=_STYLE_INPUT_WIDTH,
+        on_selection_change=on_follow_up_prompt_select,
+        value="[none]" if not state.follow_up_prompt else state.follow_up_prompt,
+      )
+      if state.follow_up_prompt == "[custom]":
+        me.input(
+          label="Custom Follow-up Prompt",
+          style=_STYLE_INPUT_WIDTH,
+          value=state.custom_follow_up_prompt if state.custom_follow_up_prompt else "",
+          on_input=on_input_custom_follow_up_prompt,
+        )
       me.select(
         options=[me.SelectOption(label="[none]", value="[none]")]+[me.SelectOption(label=i, value=i) for i in listResources("plugins", ext="py")],
         label="Input Content Plugin",
@@ -283,16 +388,21 @@ def sidebar():
         on_selection_change=on_output_content_plugin_select,
         value="[none]" if not state.output_content_plugin else state.output_content_plugin,
       )
-      me.select(
-        options=[me.SelectOption(label="[none]", value="[none]")]+[me.SelectOption(label=i, value=i) for i in listResources("agents", ext="py")],
-        label="Agent",
-        style=_STYLE_INPUT_WIDTH,
-        on_selection_change=on_agent_select,
-        value="[none]" if not state.agent else state.agent,
-      )
 
     else:
-      menu_icon(icon="add", tooltip="New chat", on_click=on_click_new_chat)
+      # new chat
+      menu_icon(icon="add", tooltip="New Chat", on_click=on_click_new_chat)
+      # open chat
+      with me.tooltip(message="Open Chat"):
+        with me.content_uploader(
+          accepted_file_types=["application/x-python"],
+          on_upload=on_click_open_chat,
+          type="icon",
+          style=me.Style(margin=me.Margin.all(10)),
+        ):
+          me.icon("file_open")
+      # save chat
+      menu_icon(icon="save", tooltip="Save Chat", on_click=on_click_save_chat)
 
     if state.sidebar_expanded:
       history_pane()
@@ -396,22 +506,24 @@ def chat_pane():
   ):
     for index, msg in enumerate(state.output):
       if msg.role == "user":
-        user_message(message=msg)
+        user_message(message_index=index, message=msg)
       else:
         bot_message(message_index=index, message=msg)
+    me.scroll_into_view(key=f"bot_msg-{str(len(state.output)-1)}")
 
-    if state.in_progress:
-      with me.box(key="scroll-to", style=me.Style(height=250)):
-        pass
+    #if state.in_progress:
+    #  with me.box(key="scroll-to", style=me.Style(height=250)):
+    #    pass
 
-def user_message(*, message: ChatMessage):
+def user_message(*, message_index: int, message: ChatMessage):
   with me.box(
     style=me.Style(
       display="flex",
       gap=15,
       justify_content="end",
       margin=me.Margin.all(20),
-    )
+    ),
+    key=f"user_msg-{message_index}",
   ):
     with me.box(
       style=me.Style(
@@ -425,7 +537,14 @@ def user_message(*, message: ChatMessage):
       me.markdown(message.content)
 
 def bot_message(*, message_index: int, message: ChatMessage):
-  with me.box(style=me.Style(display="flex", gap=15, margin=me.Margin.all(20))):
+  with me.box(
+    style=me.Style(
+      display="flex",
+      gap=15,
+      margin=me.Margin.all(20),
+    ),
+    key=f"bot_msg-{message_index}",
+  ):
     text_avatar(
       background=me.theme_var("primary"),
       color=me.theme_var("on-primary"),
@@ -497,6 +616,8 @@ def chat_input():
       type="icon",
     ):
       me.icon("send")
+
+# components
 
 @me.component
 def text_avatar(*, label: str, background: str, color: str):
@@ -571,6 +692,84 @@ def menu_item(
       me.icon(icon)
       me.text(label, style=me.Style(height=24, line_height="24px"))
 
+@me.component
+def snackbar(
+  *,
+  is_visible: bool,
+  label: str,
+  action_label: str | None = None,
+  on_click_action: Callable | None = None,
+  horizontal_position: Literal["start", "center", "end"] = "center",
+  vertical_position: Literal["start", "center", "end"] = "end",
+):
+  """Creates a snackbar.
+
+  By default the snackbar is rendered at bottom center.
+
+  The on_click_action should typically close the snackbar as part of its actions. If no
+  click event is included, you'll need to manually hide the snackbar.
+
+  Note that there is one issue with this snackbar example. No actions are possible when
+  using "time.sleep and yield" to imitate a status message that fades away after a
+  period of time.
+
+  Args:
+    is_visible: Whether the snackbar is currently visible or not.
+    label: Message for the snackbar
+    action_label: Optional message for the action of the snackbar
+    on_click_action: Optional click event when action is triggered.
+    horizontal_position: Horizontal position of the snackbar
+    vertical_position: Vertical position of the snackbar
+  """
+  with me.box(
+    style=me.Style(
+      display="block" if is_visible else "none",
+      height="100%",
+      overflow_x="auto",
+      overflow_y="auto",
+      position="fixed",
+      pointer_events="none",
+      width="100%",
+      z_index=1000,
+    )
+  ):
+    with me.box(
+      style=me.Style(
+        align_items=vertical_position,
+        height="100%",
+        display="flex",
+        justify_content=horizontal_position,
+      )
+    ):
+      with me.box(
+        style=me.Style(
+          align_items="center",
+          background=me.theme_var("on-surface-variant"),
+          border_radius=5,
+          box_shadow=(
+            "0 3px 1px -2px #0003, 0 2px 2px #00000024, 0 1px 5px #0000001f"
+          ),
+          display="flex",
+          font_size=14,
+          justify_content="space-between",
+          margin=me.Margin.all(10),
+          padding=me.Padding(top=5, bottom=5, right=5, left=15)
+          if action_label
+          else me.Padding.all(15),
+          pointer_events="auto",
+          width=300,
+        )
+      ):
+        me.text(
+          label, style=me.Style(color=me.theme_var("surface-container-lowest"))
+        )
+        if action_label:
+          me.button(
+            action_label,
+            on_click=on_click_action,
+            style=me.Style(color=me.theme_var("primary-container")),
+          )
+
 # Event Handlers
 
 def on_system_select(e: me.SelectSelectionChangeEvent):
@@ -578,10 +777,20 @@ def on_system_select(e: me.SelectSelectionChangeEvent):
   state = me.state(State)
   state.system = None if e.value == "[default]" else e.value
 
+def on_fabric_system_select(e: me.SelectSelectionChangeEvent):
+  """Event to select fabric system."""
+  state = me.state(State)
+  state.fabric_system = e.value
+
 def on_tool_select(e: me.SelectSelectionChangeEvent):
   """Event to select tool."""
   state = me.state(State)
   state.tool = None if e.value == "[none]" else e.value
+
+def on_follow_up_prompt_select(e: me.SelectSelectionChangeEvent):
+  """Event to select follow-up prompt."""
+  state = me.state(State)
+  state.follow_up_prompt = None if e.value == "[none]" else e.value
 
 def on_instruction_select(e: me.SelectSelectionChangeEvent):
   """Event to select predefined instruction."""
@@ -612,7 +821,23 @@ def on_backend_select(e: me.SelectSelectionChangeEvent):
   state.temperature = backends[state.backend].DEFAULT_TEMPERATURE
   state.max_tokens = backends[state.backend].DEFAULT_MAX_TOKENS
 
+def on_input_custom_system(e: me.InputEvent):
+  """Event to adjust custom system input."""
+  state = me.state(State)
+  state.custom_system = str(e.value)
+
+def on_input_custom_follow_up_prompt(e: me.InputEvent):
+  """Event to adjust custom follow-up prompt."""
+  state = me.state(State)
+  state.custom_follow_up_prompt = str(e.value)
+
+def on_input_custom_instruction(e: me.InputEvent):
+  """Event to adjust custom predefined instruction."""
+  state = me.state(State)
+  state.custom_instruction = str(e.value)
+
 def on_input_model(e: me.InputEvent):
+  """Event to adjust model input."""
   state = me.state(State)
   state.model = str(e.value)
 
@@ -676,7 +901,8 @@ def on_click_content_copy(e: me.ClickEvent):
     pyperclip.copy(markdown_content)
   
   # open snackbar
-  state.snackbar_content = markdown_content[:20] + " ..." if len(markdown_content) > 15 else ""
+  state.snackbar_label = markdown_content[:20] + " ..." if len(markdown_content) > 15 else ""
+  state.snackbar_action_label = "Copied!"
   state.snackbar_is_visible = True
 
   # Use yield to create a timed snackbar message.
@@ -706,14 +932,97 @@ def on_click_thumb_down(e: me.ClickEvent):
   msg_index = int(msg_index)
   state.output[msg_index].rating = -1
 
+def on_click_open_chat(event: me.UploadEvent):
+  content = event.file.read() # in bytes
+  temp_messages = []
+  temp_output = []
+  
+  try:
+    content = content.decode("utf-8")
+    content_obect = eval(content)
+
+    if isinstance(content_obect, list):
+      previous_role = ""
+      for index, item in enumerate(content_obect):
+        if isinstance(item, dict):
+          try:
+            item_role = item.get("role")
+            item_content = item.get("content")
+            if item_role and item_role in ("system", "developer", "user", "assistant") and item_content:
+              if len(temp_messages) > 0 and item_role == previous_role:
+                temp_messages[index-1]["content"] += "\n\n" + item_content
+              else:
+                temp_messages.append({"role": item_role, "content": item_content})
+              previous_role = item_role
+          except:
+            pass
+      temp_output = [
+        ChatMessage(role="bot" if chat.get("role") == "assistant" else "user", content=chat.get("content")) for chat in temp_messages[1:]
+      ]
+  except:
+    pass
+  # Check if the file is a valid chat file
+  state = me.state(State)
+  if temp_messages and temp_output:
+    global messages
+    messages = temp_messages
+    
+    if state.output: # save temporary chat history
+      state.history.insert(0, [asdict(i) for i in state.output])
+    
+    state.output = temp_output
+    me.focus_component(key="chat_input")
+    yield
+  else:
+    # open snackbar
+    state.snackbar_label = "Invalid file format"
+    state.snackbar_action_label = "Error!"
+    state.snackbar_is_visible = True
+
+    # Use yield to create a timed snackbar message.
+    if state.snackbar_duration:
+      yield
+      time.sleep(state.snackbar_duration)
+      state.snackbar_is_visible = False
+      yield
+    else:
+      yield
+
+def on_click_save_chat(e: me.ClickEvent):
+  global messages
+  if messages:
+      # save current conversation record
+      from agentmake import getCurrentDateTime
+      from pathlib import Path
+      timestamp = getCurrentDateTime()
+      folderPath = os.path.join(AGENTMAKE_USER_DIR, "chats", re.sub("^([0-9]+?-[0-9]+?)-.*?$", r"\1", timestamp))
+      Path(folderPath).mkdir(parents=True, exist_ok=True)
+      chatFile = os.path.join(folderPath, f"{timestamp}.chat")
+      writeTextFile(chatFile, pformat(messages))
+
+      # open snackbar
+      state = me.state(State)
+      state.snackbar_label = chatFile
+      state.snackbar_action_label = ""
+      state.snackbar_is_visible = True
+
+      # Use yield to create a timed snackbar message.
+      if state.snackbar_duration:
+        yield
+        time.sleep(state.snackbar_duration)
+        state.snackbar_is_visible = False
+        yield
+      else:
+        yield
+
 def on_click_new_chat(e: me.ClickEvent):
   """Resets messages."""
   global messages
   messages = []
 
   state = me.state(State)
-  if state.output:
-    state.history.insert(0, [asdict(messages) for messages in state.output])
+  if state.output: # save temporary chat history
+    state.history.insert(0, [asdict(i) for i in state.output])
   state.output = []
   me.focus_component(key="chat_input")
 
@@ -801,7 +1110,7 @@ def _submit_chat_msg():
     output = []
   output.append(ChatMessage(role="user", content=input))
   state.in_progress = True
-  me.scroll_into_view(key="scroll-to")
+  #me.scroll_into_view(key="scroll-to")
   yield
 
   start_time = time.time()
@@ -822,6 +1131,7 @@ def _submit_chat_msg():
   yield
 
 # Helpers
+
 def _is_mobile():
   return me.viewport_size().width < _MOBILE_BREAKPOINT
 
@@ -832,88 +1142,25 @@ def _truncate_text(text, char_limit=100):
   truncated_text = text[:char_limit].rsplit(" ", 1)[0]
   return truncated_text.rstrip(".,!?;:") + "..."
 
-@me.component
-def snackbar(
-  *,
-  is_visible: bool,
-  label: str,
-  action_label: str | None = None,
-  on_click_action: Callable | None = None,
-  horizontal_position: Literal["start", "center", "end"] = "center",
-  vertical_position: Literal["start", "center", "end"] = "end",
-):
-  """Creates a snackbar.
+# CLI
 
-  By default the snackbar is rendered at bottom center.
-
-  The on_click_action should typically close the snackbar as part of its actions. If no
-  click event is included, you'll need to manually hide the snackbar.
-
-  Note that there is one issue with this snackbar example. No actions are possible when
-  using "time.sleep and yield" to imitate a status message that fades away after a
-  period of time.
-
-  Args:
-    is_visible: Whether the snackbar is currently visible or not.
-    label: Message for the snackbar
-    action_label: Optional message for the action of the snackbar
-    on_click_action: Optional click event when action is triggered.
-    horizontal_position: Horizontal position of the snackbar
-    vertical_position: Vertical position of the snackbar
-  """
-  with me.box(
-    style=me.Style(
-      display="block" if is_visible else "none",
-      height="100%",
-      overflow_x="auto",
-      overflow_y="auto",
-      position="fixed",
-      pointer_events="none",
-      width="100%",
-      z_index=1000,
-    )
-  ):
-    with me.box(
-      style=me.Style(
-        align_items=vertical_position,
-        height="100%",
-        display="flex",
-        justify_content=horizontal_position,
-      )
-    ):
-      with me.box(
-        style=me.Style(
-          align_items="center",
-          background=me.theme_var("on-surface-variant"),
-          border_radius=5,
-          box_shadow=(
-            "0 3px 1px -2px #0003, 0 2px 2px #00000024, 0 1px 5px #0000001f"
-          ),
-          display="flex",
-          font_size=14,
-          justify_content="space-between",
-          margin=me.Margin.all(10),
-          padding=me.Padding(top=5, bottom=5, right=5, left=15)
-          if action_label
-          else me.Padding.all(15),
-          pointer_events="auto",
-          width=300,
-        )
-      ):
-        me.text(
-          label, style=me.Style(color=me.theme_var("surface-container-lowest"))
-        )
-        if action_label:
-          me.button(
-            action_label,
-            on_click=on_click_action,
-            style=me.Style(color=me.theme_var("primary-container")),
-          )
+def is_process_running(process_name):
+  for proc in psutil.process_iter(['pid', 'name']):
+    if proc.info['name'].lower() == process_name.lower():
+      return True
+  return False
 
 def main():
+  # Create the parser
+  parser = argparse.ArgumentParser(description = """AgentMake Studio cli options""")
+  # Add arguments for running `agentmakestudio` cli
+  parser.add_argument("-p", "--port", action='store', dest="port", type=int, help="port number; 32123 by default if it is not specified")
+  # Parse arguments
+  args = parser.parse_args()
+  print("Starting AgentMake Studio ...")
   mesop_cli = shutil.which("mesop")
   this_file = os.path.realpath(__file__)
-  os.system(f'''{mesop_cli} "{this_file}"''')
+  os.system(f'''{mesop_cli} --port {args.port if args.port else 32123} "{this_file}"''')
 
 if __name__ == "__main__":
     test = main()
