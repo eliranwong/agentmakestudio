@@ -1170,7 +1170,8 @@ def on_click_open_chat(event: me.UploadEvent):
       state.history.insert(0, [asdict(i) for i in state.output])
     
     state.output = temp_output
-    me.focus_component(key="chat_input")
+    if not _is_mobile():
+      me.focus_component(key="chat_input")
     yield
   else:
     # open snackbar
@@ -1223,7 +1224,8 @@ def on_click_new_chat(e: me.ClickEvent):
   if state.output: # save temporary chat history
     state.history.insert(0, [asdict(i) for i in state.output])
   state.output = []
-  me.focus_component(key="chat_input")
+  if not _is_mobile():
+    me.focus_component(key="chat_input")
 
 def on_click_history(e: me.ClickEvent):
   """Loads existing chat from history and saves current chat"""
@@ -1235,7 +1237,8 @@ def on_click_history(e: me.ClickEvent):
   if state.output:
     state.history.insert(0, [asdict(messages) for messages in state.output])
   state.output = chat_messages
-  me.focus_component(key="chat_input")
+  if not _is_mobile():
+    me.focus_component(key="chat_input")
 
 def on_click_theme_brightness(e: me.ClickEvent):
   """Toggles dark mode."""
@@ -1282,7 +1285,8 @@ def on_click_regenerate(e: me.ClickEvent):
       yield
 
   state.in_progress = False
-  me.focus_component(key="chat_input")
+  if not _is_mobile():
+    me.focus_component(key="chat_input")
   yield
 
 def on_submit_chat_msg(e: me.TextareaShortcutEvent):
@@ -1326,7 +1330,8 @@ def _submit_chat_msg():
       yield
 
   state.in_progress = False
-  me.focus_component(key="chat_input")
+  if not _is_mobile():
+    me.focus_component(key="chat_input")
   yield
 
 # Helpers
