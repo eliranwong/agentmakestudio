@@ -52,6 +52,22 @@ https://github.com/eliranwong/agentmakestudio/blob/main/README.md
 
 You may place the content script in, e.g. `~/.bashrc`
 
+# Usage
+
+Enter your prompt and get a response.
+
+Use the menu items to specify [agentic components](https://github.com/eliranwong/agentmake#introducing-agentic-components) optionally.
+
+The following shortcuts are supported for specifying agent, tool, system, instruction in a single turn. These shortcuts work only if there is no agent being selected in the menu and you declar a shortcut at the beginning of your prompt:
+
+* agent - `@@` followed by an agent name, e.g. `@@reasoning`
+
+* tool - `@` followed by a tool name, e.g. `@magic`
+
+* system - `++` followed by a system name, e.g. `++auto`
+
+* instruction - `+` followed by an instruction name, e.g. `+think`
+
 # Read more
 
 https://github.com/eliranwong/agentmake
