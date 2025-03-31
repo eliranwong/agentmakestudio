@@ -343,38 +343,43 @@ def sidebar():
         value=state.backend,
       )
       if not state.backend == "llamacpp":
+        with me.tooltip(message="Press 'Enter' to apply changes"):
+          me.input(
+            label="Model",
+            style=_STYLE_INPUT_WIDTH,
+            value=state.model if state.model else "",
+            on_enter=on_input_model,
+          )
+      with me.tooltip(message="Press 'Enter' to apply changes"):
         me.input(
-          label="Model",
+          label="Temperature",
           style=_STYLE_INPUT_WIDTH,
-          value=state.model if state.model else "",
-          on_input=on_input_model,
+          value=str(state.temperature),
+          on_enter=on_input_temperature,
         )
-      me.input(
-        label="Temperature",
-        style=_STYLE_INPUT_WIDTH,
-        value=str(state.temperature),
-        on_input=on_input_temperature,
-      )
-      me.input(
-        label="Output Token Limit",
-        style=_STYLE_INPUT_WIDTH,
-        value=str(state.max_tokens),
-        on_input=on_input_max_tokens,
-      )
+      with me.tooltip(message="Press 'Enter' to apply changes"):
+        me.input(
+          label="Output Token Limit",
+          style=_STYLE_INPUT_WIDTH,
+          value=str(state.max_tokens),
+          on_enter=on_input_max_tokens,
+        )
 
       if state.backend == "ollama":
-        me.input(
-          label="Context Window Size",
-          style=_STYLE_INPUT_WIDTH,
-          value=str(state.context_window),
-          on_input=on_input_context_window,
-        )
-        me.input(
-          label="Batch Size",
-          style=_STYLE_INPUT_WIDTH,
-          value=str(state.batch_size),
-          on_input=on_input_batch_size,
-        )
+        with me.tooltip(message="Press 'Enter' to apply changes"):
+          me.input(
+            label="Context Window Size",
+            style=_STYLE_INPUT_WIDTH,
+            value=str(state.context_window),
+            on_enter=on_input_context_window,
+          )
+        with me.tooltip(message="Press 'Enter' to apply changes"):
+          me.input(
+            label="Batch Size",
+            style=_STYLE_INPUT_WIDTH,
+            value=str(state.batch_size),
+            on_enter=on_input_batch_size,
+          )
 
       with me.tooltip(message=state.agent_tooltip):
         me.select(
@@ -406,12 +411,13 @@ def sidebar():
           value="[default]" if not state.system else state.system,
         )
       if state.system == "[custom]":
-        me.input(
-          label="Custom System",
-          style=_STYLE_INPUT_WIDTH,
-          value=state.custom_system if state.custom_system else "",
-          on_input=on_input_custom_system,
-        )
+        with me.tooltip(message="Press 'Enter' to apply changes"):
+          me.input(
+            label="Custom System",
+            style=_STYLE_INPUT_WIDTH,
+            value=state.custom_system if state.custom_system else "",
+            on_enter=on_input_custom_system,
+          )
       if state.system == "[fabric]":
         me.select(
           options=[me.SelectOption(label=i, value=i) for i in fabricSystems],
@@ -432,12 +438,13 @@ def sidebar():
           value="[none]" if not state.instruction else state.instruction,
         )
       if state.instruction == "[custom]":
-        me.input(
-          label="Custom Instruction",
-          style=_STYLE_INPUT_WIDTH,
-          value=state.custom_instruction if state.custom_instruction else "",
-          on_input=on_input_custom_instruction,
-        )
+        with me.tooltip(message="Press 'Enter' to apply changes"):
+          me.input(
+            label="Custom Instruction",
+            style=_STYLE_INPUT_WIDTH,
+            value=state.custom_instruction if state.custom_instruction else "",
+            on_enter=on_input_custom_instruction,
+          )
       if state.instruction == "[fabric]":
         me.select(
           options=[me.SelectOption(label=i, value=i) for i in fabricSystems],
@@ -455,12 +462,13 @@ def sidebar():
           value="[none]" if not state.follow_up_prompt else state.follow_up_prompt,
         )
       if state.follow_up_prompt == "[custom]":
-        me.input(
-          label="Custom Follow-up Prompt",
-          style=_STYLE_INPUT_WIDTH,
-          value=state.custom_follow_up_prompt if state.custom_follow_up_prompt else "",
-          on_input=on_input_custom_follow_up_prompt,
-        )
+        with me.tooltip(message="Press 'Enter' to apply changes"):
+          me.input(
+            label="Custom Follow-up Prompt",
+            style=_STYLE_INPUT_WIDTH,
+            value=state.custom_follow_up_prompt if state.custom_follow_up_prompt else "",
+            on_enter=on_input_custom_follow_up_prompt,
+          )
       with me.tooltip(message=state.input_content_plugin_tooltip):
         me.select(
           options=[me.SelectOption(label="[none]", value="[none]")]+[me.SelectOption(label=i, value=i) for i in listResources("plugins", ext="py")],
@@ -892,6 +900,18 @@ def on_input_custom_instruction(e: me.InputEvent):
   state = me.state(State)
   state.custom_instruction = str(e.value)
   state.instruction_tooltip = state.custom_instruction if state.custom_instruction else "Please specify a custom instruction"
+  # open snackbar
+  state.snackbar_label = "Custom instruction"
+  state.snackbar_action_label = "updated!"
+  state.snackbar_is_visible = True
+  # Use yield to create a timed snackbar message.
+  if state.snackbar_duration:
+    yield
+    time.sleep(state.snackbar_duration)
+    state.snackbar_is_visible = False
+    yield
+  else:
+    yield
 
 def on_fabric_instruction_select(e: me.SelectSelectionChangeEvent):
   """Event to select fabric instruction."""
@@ -928,6 +948,18 @@ def on_input_custom_system(e: me.InputEvent):
   state = me.state(State)
   state.custom_system = str(e.value)
   state.system_tooltip = state.custom_system if state.custom_system else "Please specify a custom system message"
+  # open snackbar
+  state.snackbar_label = "Custom system"
+  state.snackbar_action_label = "updated!"
+  state.snackbar_is_visible = True
+  # Use yield to create a timed snackbar message.
+  if state.snackbar_duration:
+    yield
+    time.sleep(state.snackbar_duration)
+    state.snackbar_is_visible = False
+    yield
+  else:
+    yield
 
 def on_fabric_system_select(e: me.SelectSelectionChangeEvent):
   """Event to select fabric system."""
@@ -1023,11 +1055,35 @@ def on_input_custom_follow_up_prompt(e: me.InputEvent):
   state = me.state(State)
   state.custom_follow_up_prompt = str(e.value)
   state.follow_up_prompt_tooltip = state.custom_follow_up_prompt if state.custom_follow_up_prompt else "Please specify a custom follow-up prompt"
+  # open snackbar
+  state.snackbar_label = "Custom follow-up prompt"
+  state.snackbar_action_label = "updated!"
+  state.snackbar_is_visible = True
+  # Use yield to create a timed snackbar message.
+  if state.snackbar_duration:
+    yield
+    time.sleep(state.snackbar_duration)
+    state.snackbar_is_visible = False
+    yield
+  else:
+    yield
 
 def on_input_model(e: me.InputEvent):
   """Event to adjust model input."""
   state = me.state(State)
   state.model = str(e.value)
+  # open snackbar
+  state.snackbar_label = "Model"
+  state.snackbar_action_label = "updated!"
+  state.snackbar_is_visible = True
+  # Use yield to create a timed snackbar message.
+  if state.snackbar_duration:
+    yield
+    time.sleep(state.snackbar_duration)
+    state.snackbar_is_visible = False
+    yield
+  else:
+    yield
 
 def on_input_temperature(e: me.InputEvent):
   """Event to adjust temperature slider value by input."""
@@ -1036,6 +1092,18 @@ def on_input_temperature(e: me.InputEvent):
     temperature = float(e.value)
     if _TEMPERATURE_MIN <= temperature <= _TEMPERATURE_MAX:
       state.temperature = temperature
+      # open snackbar
+      state.snackbar_label = "Temperature"
+      state.snackbar_action_label = "updated!"
+      state.snackbar_is_visible = True
+      # Use yield to create a timed snackbar message.
+      if state.snackbar_duration:
+        yield
+        time.sleep(state.snackbar_duration)
+        state.snackbar_is_visible = False
+        yield
+      else:
+        yield
   except ValueError:
     pass
 
@@ -1046,6 +1114,18 @@ def on_input_max_tokens(e: me.InputEvent):
     max_tokens = int(e.value)
     if max_tokens == -1 or max_tokens >= _TOKEN_LIMIT_MIN:
       state.max_tokens = max_tokens
+      # open snackbar
+      state.snackbar_label = "Output token limit"
+      state.snackbar_action_label = "updated!"
+      state.snackbar_is_visible = True
+      # Use yield to create a timed snackbar message.
+      if state.snackbar_duration:
+        yield
+        time.sleep(state.snackbar_duration)
+        state.snackbar_is_visible = False
+        yield
+      else:
+        yield
   except ValueError:
     pass
 
@@ -1055,6 +1135,18 @@ def on_input_context_window(e: me.InputEvent):
   try:
     context_window = int(e.value)
     state.context_window = context_window
+    # open snackbar
+    state.snackbar_label = "Context window size"
+    state.snackbar_action_label = "updated!"
+    state.snackbar_is_visible = True
+    # Use yield to create a timed snackbar message.
+    if state.snackbar_duration:
+      yield
+      time.sleep(state.snackbar_duration)
+      state.snackbar_is_visible = False
+      yield
+    else:
+      yield
   except ValueError:
     pass
 
@@ -1064,6 +1156,18 @@ def on_input_batch_size(e: me.InputEvent):
   try:
     batch_size = int(e.value)
     state.batch_size = batch_size
+    # open snackbar
+    state.snackbar_label = "Batch size"
+    state.snackbar_action_label = "updated!"
+    state.snackbar_is_visible = True
+    # Use yield to create a timed snackbar message.
+    if state.snackbar_duration:
+      yield
+      time.sleep(state.snackbar_duration)
+      state.snackbar_is_visible = False
+      yield
+    else:
+      yield
   except ValueError:
     pass
 
