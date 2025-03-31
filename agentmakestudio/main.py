@@ -1,4 +1,4 @@
-from agentmake import agentmake, getToolInfo, listResources, listFabricSystems, readTextFile, writeTextFile, getFabricPatternSystem, DEVELOPER_MODE, PACKAGE_PATH, AGENTMAKE_USER_DIR, DEFAULT_SYSTEM_MESSAGE, DEFAULT_AI_BACKEND, SUPPORTED_AI_BACKENDS, AnthropicAI, AzureAI, AzureAnyAI, CohereAI, OpenaiCompatibleAI, DeepseekAI, GenaiAI, GithubAI, GithubAnyAI, GoogleaiAI, GroqAI, LlamacppAI, MistralAI, OllamaAI, OpenaiAI, XaiAI
+from agentmake import override_DEFAULT_TEXT_EDITOR, agentmake, getToolInfo, listResources, listFabricSystems, readTextFile, writeTextFile, getFabricPatternSystem, DEVELOPER_MODE, PACKAGE_PATH, AGENTMAKE_USER_DIR, DEFAULT_SYSTEM_MESSAGE, DEFAULT_AI_BACKEND, SUPPORTED_AI_BACKENDS, AnthropicAI, AzureAI, AzureAnyAI, CohereAI, OpenaiCompatibleAI, DeepseekAI, GenaiAI, GithubAI, GithubAnyAI, GoogleaiAI, GroqAI, LlamacppAI, MistralAI, OllamaAI, OpenaiAI, XaiAI
 from agentmake.utils.media import generate_edge_tts_audio, playAudioFile
 from agentmake.utils.online import openURL
 from pprint import pformat
@@ -210,6 +210,7 @@ def on_load(e: me.LoadEvent):
   on_load=on_load,
 )
 def page():
+  override_DEFAULT_TEXT_EDITOR("echo")
   state = me.state(State)
 
   snackbar(
