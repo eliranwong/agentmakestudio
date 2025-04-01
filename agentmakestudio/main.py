@@ -1,4 +1,6 @@
-from agentmake import override_DEFAULT_TEXT_EDITOR, agentmake, getToolInfo, listResources, listFabricSystems, readTextFile, writeTextFile, getFabricPatternSystem, DEVELOPER_MODE, PACKAGE_PATH, AGENTMAKE_USER_DIR, DEFAULT_SYSTEM_MESSAGE, DEFAULT_AI_BACKEND, SUPPORTED_AI_BACKENDS, AnthropicAI, AzureAI, AzureAnyAI, CohereAI, OpenaiCompatibleAI, DeepseekAI, GenaiAI, GithubAI, GithubAnyAI, GoogleaiAI, GroqAI, LlamacppAI, MistralAI, OllamaAI, OpenaiAI, XaiAI
+import agentmake as am
+am.DEFAULT_TEXT_EDITOR = "echo" # overriding default text editor
+from agentmake import agentmake, getToolInfo, listResources, listFabricSystems, readTextFile, writeTextFile, getFabricPatternSystem, DEVELOPER_MODE, PACKAGE_PATH, AGENTMAKE_USER_DIR, DEFAULT_SYSTEM_MESSAGE, DEFAULT_AI_BACKEND, SUPPORTED_AI_BACKENDS, AnthropicAI, AzureAI, AzureAnyAI, CohereAI, OpenaiCompatibleAI, DeepseekAI, GenaiAI, GithubAI, GithubAnyAI, GoogleaiAI, GroqAI, LlamacppAI, MistralAI, OllamaAI, OpenaiAI, XaiAI
 from agentmake.utils.media import generate_edge_tts_audio, playAudioFile
 from agentmake.utils.online import openURL
 from pprint import pformat
@@ -144,13 +146,13 @@ def respond_to_chat(input: str, history: list[ChatMessage]):
       system_pattern = rf"""^\+\+({system_pattern})[\n ]"""
       if search_result := re.search(system_pattern, input):
         temp_system = search_result.group(1)
-        input = input[len(temp_agent)+3:]
+        input = input[len(temp_system)+3:]
     elif input.startswith("+"):
       instruction_pattern = "|".join(listResources("instructions"))
       instruction_pattern = rf"""^\+({instruction_pattern})[\n ]"""
       if search_result := re.search(instruction_pattern, input):
         temp_instruction = search_result.group(1)
-        input = input[len(temp_tool)+2:]
+        input = input[len(temp_instruction)+2:]
 
   # follow_up_prompt
   follow_up_prompt_content = state.follow_up_prompt if not state.follow_up_prompt == "[custom]" else state.custom_follow_up_prompt or None
@@ -206,11 +208,23 @@ def on_load(e: me.LoadEvent):
     allowed_iframe_parents=["https://mesop-dev.github.io"]
   ),
   title="AgentMake AI Studio",
+  path="/settings",
+  on_load=on_load,
+)
+def settings():
+  state = me.state(State)
+  with me.box(style=me.Style(margin=me.Margin.all(15))):
+    me.text(text="... settings page in progress ...", type="headline-1")
+
+@me.page(
+  security_policy=me.SecurityPolicy(
+    allowed_iframe_parents=["https://mesop-dev.github.io"]
+  ),
+  title="AgentMake AI Studio",
   #path="/studio",
   on_load=on_load,
 )
 def page():
-  override_DEFAULT_TEXT_EDITOR("echo")
   state = me.state(State)
 
   snackbar(
@@ -327,6 +341,14 @@ def sidebar():
             type="icon",
           ):
             me.icon("save")
+        # settings
+        with me.tooltip(message="Settings"):
+          with me.content_button(
+            on_click=lambda e: me.navigate("/settings"),
+            style=me.Style(top=0, left=10, right=10, bottom=10),
+            type="icon",
+          ):
+            me.icon("settings")
         # info
         with me.tooltip(message="Info"):
           with me.content_button(
@@ -501,8 +523,10 @@ def sidebar():
           me.icon("file_open")
       # save chat
       menu_icon(icon="save", tooltip="Save Chat", on_click=on_click_save_chat)
+      # settings
+      menu_icon(icon="settings", tooltip="Settings", on_click=lambda e: me.navigate("/settings"))
       # help
-      menu_icon(icon="info", tooltip="Help", on_click=lambda e: openURL("https://github.com/eliranwong/agentmake"))
+      menu_icon(icon="info", tooltip="Info", on_click=lambda e: openURL("https://github.com/eliranwong/agentmake"))
 
     if state.sidebar_expanded:
       history_pane()
@@ -1073,6 +1097,7 @@ def on_input_model(e: me.InputEvent):
   """Event to adjust model input."""
   state = me.state(State)
   state.model = str(e.value)
+  backends[state.backend].DEFAULT_MODEL = state.model
   # open snackbar
   state.snackbar_label = "Model"
   state.snackbar_action_label = "updated!"
@@ -1093,6 +1118,7 @@ def on_input_temperature(e: me.InputEvent):
     temperature = float(e.value)
     if _TEMPERATURE_MIN <= temperature <= _TEMPERATURE_MAX:
       state.temperature = temperature
+      backends[state.backend].DEFAULT_TEMPERATURE = state.temperature
       # open snackbar
       state.snackbar_label = "Temperature"
       state.snackbar_action_label = "updated!"
@@ -1115,6 +1141,7 @@ def on_input_max_tokens(e: me.InputEvent):
     max_tokens = int(e.value)
     if max_tokens == -1 or max_tokens >= _TOKEN_LIMIT_MIN:
       state.max_tokens = max_tokens
+      backends[state.backend].DEFAULT_MAX_TOKENS = state.max_tokens
       # open snackbar
       state.snackbar_label = "Output token limit"
       state.snackbar_action_label = "updated!"
@@ -1136,6 +1163,7 @@ def on_input_context_window(e: me.InputEvent):
   try:
     context_window = int(e.value)
     state.context_window = context_window
+    backends[state.backend].DEFAULT_CONTEXT_WINDOW = state.context_window
     # open snackbar
     state.snackbar_label = "Context window size"
     state.snackbar_action_label = "updated!"
@@ -1157,6 +1185,7 @@ def on_input_batch_size(e: me.InputEvent):
   try:
     batch_size = int(e.value)
     state.batch_size = batch_size
+    backends[state.backend].DEFAULT_BATCH_SIZE = state.batch_size
     # open snackbar
     state.snackbar_label = "Batch size"
     state.snackbar_action_label = "updated!"
