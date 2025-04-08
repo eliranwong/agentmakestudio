@@ -366,41 +366,46 @@ def sidebar():
         value=state.backend,
       )
       if not state.backend == "llamacpp":
-        with me.tooltip(message="Press 'Enter' to apply changes"):
+        with me.tooltip(message="Enter model name"):
           me.input(
             label="Model",
             style=_STYLE_INPUT_WIDTH,
             value=state.model if state.model else "",
+            on_blur=on_input_model,
             on_enter=on_input_model,
           )
-      with me.tooltip(message="Press 'Enter' to apply changes"):
+      with me.tooltip(message="Enter a temperature value (0.0-2.0)"):
         me.input(
           label="Temperature",
           style=_STYLE_INPUT_WIDTH,
           value=str(state.temperature),
+          on_blur=on_input_temperature,
           on_enter=on_input_temperature,
         )
-      with me.tooltip(message="Press 'Enter' to apply changes"):
+      with me.tooltip(message="Enter output token limit (integer required)"):
         me.input(
           label="Output Token Limit",
           style=_STYLE_INPUT_WIDTH,
           value=str(state.max_tokens),
+          on_blur=on_input_max_tokens,
           on_enter=on_input_max_tokens,
         )
 
       if state.backend == "ollama":
-        with me.tooltip(message="Press 'Enter' to apply changes"):
+        with me.tooltip(message="Enter context window size (integer required)"):
           me.input(
             label="Context Window Size",
             style=_STYLE_INPUT_WIDTH,
             value=str(state.context_window),
+            on_blur=on_input_context_window,
             on_enter=on_input_context_window,
           )
-        with me.tooltip(message="Press 'Enter' to apply changes"):
+        with me.tooltip(message="Enter batch size (integer required)"):
           me.input(
             label="Batch Size",
             style=_STYLE_INPUT_WIDTH,
             value=str(state.batch_size),
+            on_blur=on_input_batch_size,
             on_enter=on_input_batch_size,
           )
 
@@ -434,11 +439,12 @@ def sidebar():
           value="[default]" if not state.system else state.system,
         )
       if state.system == "[custom]":
-        with me.tooltip(message="Press 'Enter' to apply changes"):
+        with me.tooltip(message="Enter custom system message"):
           me.input(
             label="Custom System",
             style=_STYLE_INPUT_WIDTH,
             value=state.custom_system if state.custom_system else "",
+            on_blur=on_input_custom_system,
             on_enter=on_input_custom_system,
           )
       if state.system == "[fabric]":
@@ -461,11 +467,12 @@ def sidebar():
           value="[none]" if not state.instruction else state.instruction,
         )
       if state.instruction == "[custom]":
-        with me.tooltip(message="Press 'Enter' to apply changes"):
+        with me.tooltip(message="Enter custom instruction"):
           me.input(
             label="Custom Instruction",
             style=_STYLE_INPUT_WIDTH,
             value=state.custom_instruction if state.custom_instruction else "",
+            on_blur=on_input_custom_instruction,
             on_enter=on_input_custom_instruction,
           )
       if state.instruction == "[fabric]":
@@ -485,11 +492,12 @@ def sidebar():
           value="[none]" if not state.follow_up_prompt else state.follow_up_prompt,
         )
       if state.follow_up_prompt == "[custom]":
-        with me.tooltip(message="Press 'Enter' to apply changes"):
+        with me.tooltip(message="Enter custom follow-up prompt"):
           me.input(
             label="Custom Follow-up Prompt",
             style=_STYLE_INPUT_WIDTH,
             value=state.custom_follow_up_prompt if state.custom_follow_up_prompt else "",
+            on_blur=on_input_custom_follow_up_prompt,
             on_enter=on_input_custom_follow_up_prompt,
           )
       with me.tooltip(message=state.input_content_plugin_tooltip):

@@ -48,7 +48,7 @@ Open `http://localhost:33333` in a web browser.
 
 Below is an example bash script that runs `agentmakestudio` automatically:
 
-https://github.com/eliranwong/agentmakestudio/blob/main/README.md
+https://github.com/eliranwong/agentmakestudio/blob/main/auto_run.sh
 
 You may place the content script in, e.g. `~/.bashrc`
 

@@ -2,7 +2,7 @@
 
 # export agentmake venv bin path
 # assuming `ai` is the virtual environment directory for installing agentmake
-export PATH=$PATH:/home/$USER/ai/bin
+export PATH=$PATH:$HOME/ai/bin
 
 # Function to start AgentMake Studio
 start_agentmakestudio() {
